@@ -1,5 +1,5 @@
 {
-  "name": "minirouter-plugin",
+  "name": "minirouter",
   "version": "2.1.0",
   "description": "OpenClaw Plugin — Intelligente Model-Auswahl via 15-dimensionaler Scoring Engine",
   "type": "module",
