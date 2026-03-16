@@ -1,5 +1,6 @@
-import { router } from './router.js';
+import { createRouter } from './router.js';
 import { MiniRouterRequest, MiniRouterResponse, RoutingDecision, MiniRouterOptions, RequestSource } from './types.js';
+import { MODEL_CATEGORIES, getDefaultCategory } from './models.js';
 
 /** Request-Typen die NICHT geroutet werden (immer bypass) */
 const NEVER_ROUTE: RequestSource[] = ['compaction', 'heartbeat', 'cron'];
@@ -20,12 +21,17 @@ export interface MiniRouterPlugin {
  * - compaction / heartbeat / cron ❌ (immer bypass, Config-basiert)
  */
 export class MiniRouter implements MiniRouterPlugin {
+  private router: ReturnType<typeof createRouter>;
   private defaultModel: string;
   private routeFor: RequestSource[];
 
   constructor(options: MiniRouterOptions = {}) {
-    this.defaultModel = options.defaultModel ?? 'openrouter/minimax/minimax-m2.5';
+    this.defaultModel = options.defaultModel ?? getDefaultCategory().models[0];
     this.routeFor = options.routeFor ?? ['main', 'subagent'];
+    this.router = createRouter({
+      categories: options.categories,
+      defaultModel: this.defaultModel,
+    });
   }
 
   async complete(request: MiniRouterRequest): Promise<MiniRouterResponse> {
@@ -34,12 +40,9 @@ export class MiniRouter implements MiniRouterPlugin {
 
   /**
    * Routing ohne Source-Check (legacy — routet immer)
-   * 
-   * defaultModel wird NUR als Fallback verwendet wenn kein Tier matched.
-   * Es wird NICHT als request.model gesetzt (würde Scoring bypassen).
    */
   async decide(request: MiniRouterRequest): Promise<RoutingDecision> {
-    return router.route(request, this.defaultModel);
+    return this.router.route(request);
   }
 
   /**
@@ -49,7 +52,6 @@ export class MiniRouter implements MiniRouterPlugin {
    * - compaction / heartbeat / cron → sofort bypass (defaultModel)
    */
   async decideForSource(request: MiniRouterRequest, source: RequestSource): Promise<RoutingDecision> {
-    // Bypass für System-Request-Typen
     if (NEVER_ROUTE.includes(source)) {
       return {
         selectedModel: this.defaultModel,
@@ -60,7 +62,6 @@ export class MiniRouter implements MiniRouterPlugin {
       };
     }
 
-    // Nur routen wenn source in routeFor-Liste
     if (!this.routeFor.includes(source)) {
       return {
         selectedModel: this.defaultModel,
@@ -71,8 +72,7 @@ export class MiniRouter implements MiniRouterPlugin {
       };
     }
 
-    // Normaler Routing-Flow (defaultModel als Fallback, nicht als request.model)
-    return router.route(request, this.defaultModel);
+    return this.router.route(request);
   }
 
   async healthCheck(): Promise<boolean> {
@@ -91,6 +91,6 @@ export function createMiniRouter(options?: MiniRouterOptions): MiniRouter {
 }
 
 // Re-exports
-export { router } from './router.js';
+export { createRouter } from './router.js';
 export { MODEL_CATEGORIES, getDefaultCategory } from './models.js';
 export * from './types.js';

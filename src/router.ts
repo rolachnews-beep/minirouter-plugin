@@ -1,4 +1,4 @@
-import { MODEL_CATEGORIES, getDefaultCategory } from './models.js';
+import { MODEL_CATEGORIES } from './models.js';
 import { MiniRouterRequest, RoutingDecision, ModelCategory, DimensionScore } from './types.js';
 
 // ═══════════════════════════════════════════════════════════════
@@ -12,23 +12,23 @@ import { MiniRouterRequest, RoutingDecision, ModelCategory, DimensionScore } fro
 // - <1ms Latenz (100% local, keine externen API-Calls)
 // ═══════════════════════════════════════════════════════════════
 
-// Dimension Weights (sum ≈ 1.0)
+// Dimension Weights (sum = 1.0)
 const DIMENSION_WEIGHTS: Record<string, number> = {
-  tokenCount: 0.08,
-  codePresence: 0.15,
-  reasoningMarkers: 0.18,
-  technicalTerms: 0.10,
-  creativeMarkers: 0.05,
-  simpleIndicators: 0.02,
+  tokenCount: 0.09,
+  codePresence: 0.16,
+  reasoningMarkers: 0.19,
+  technicalTerms: 0.11,
+  creativeMarkers: 0.06,
+  simpleIndicators: 0.03,
   multiStepPatterns: 0.10,
   questionComplexity: 0.05,
-  imperativeVerbs: 0.03,
+  imperativeVerbs: 0.04,
   constraintCount: 0.04,
   outputFormat: 0.03,
   referenceComplexity: 0.02,
-  negationComplexity: 0.01,
-  domainSpecificity: 0.02,
-  agenticTask: 0.04,
+  negationComplexity: 0.02,
+  domainSpecificity: 0.03,
+  agenticTask: 0.03,
 };
 
 // Tier Boundaries auf weighted score axis
@@ -45,15 +45,18 @@ const CONFIDENCE_STEEPNESS = 12;
  * MiniRouter — Intelligenter Model-Router für OpenClaw
  */
 export class Router {
-  private categories: ModelCategory[] = MODEL_CATEGORIES;
+  private categories: ModelCategory[];
+  private defaultModel: string;
+
+  constructor(options?: { categories?: ModelCategory[]; defaultModel?: string }) {
+    this.categories = options?.categories?.length ? options.categories : MODEL_CATEGORIES;
+    this.defaultModel = options?.defaultModel ?? 'openrouter/minimax/minimax-m2.5';
+  }
 
   /**
    * Hauptmethode: Entscheidet welches Model verwendet werden soll.
-   * 
-   * WICHTIG: `request.model` wird IGNORIERT für Scoring-Zwecke.
-   * Nur `defaultModel` wird als Fallback nach dem Scoring verwendet.
    */
-  async route(request: MiniRouterRequest, defaultModel?: string): Promise<RoutingDecision> {
+  async route(request: MiniRouterRequest): Promise<RoutingDecision> {
     const startTime = Date.now();
 
     // ── Overrides prüfen (vor Scoring) ──
@@ -158,7 +161,18 @@ export class Router {
 
     // ── Standard Tier Selection ──
     const tier = this.selectTier(weightedScore);
-    const category = this.categories.find(c => c.name === tier) ?? getDefaultCategory();
+    const category = this.categories.find(c => c.name === tier);
+
+    // Fallback: Kategorie nicht gefunden → defaultModel
+    if (!category || !category.models.length) {
+      return {
+        selectedModel: this.defaultModel,
+        category: 'DEFAULT',
+        confidence: this.sigmoid(weightedScore),
+        reasoning: `Score: ${weightedScore.toFixed(3)} | No tier matched, using default`,
+        latencyMs: Date.now() - startTime
+      };
+    }
 
     return {
       selectedModel: category.models[0],
@@ -185,14 +199,16 @@ export class Router {
     // Structured Output → mindestens MEDIUM
     const lowerPrompt = request.prompt.toLowerCase();
     if (/\b(json|yaml|xml|csv|structured|schema)\b/.test(lowerPrompt)) {
-      const cat = this.categories.find(c => c.name === 'MEDIUM') ?? getDefaultCategory();
-      return { models: cat.models, name: cat.name, reason: 'Structured output requested' };
+      const cat = this.categories.find(c => c.name === 'MEDIUM');
+      if (cat) return { models: cat.models, name: cat.name, reason: 'Structured output requested' };
+      return { models: [this.defaultModel], name: 'DEFAULT', reason: 'Structured output requested (fallback)' };
     }
 
     // High max_tokens → REASONING
     if (request.max_tokens && request.max_tokens > 4000) {
-      const cat = this.categories.find(c => c.name === 'REASONING') ?? getDefaultCategory();
-      return { models: cat.models, name: cat.name, reason: `High max_tokens (${request.max_tokens})` };
+      const cat = this.categories.find(c => c.name === 'REASONING');
+      if (cat) return { models: cat.models, name: cat.name, reason: `High max_tokens (${request.max_tokens})` };
+      return { models: [this.defaultModel], name: 'DEFAULT', reason: `High max_tokens (fallback)` };
     }
 
     return null;
@@ -359,4 +375,6 @@ export class Router {
   }
 }
 
-export const router = new Router();
+export function createRouter(options?: { categories?: ModelCategory[]; defaultModel?: string }): Router {
+  return new Router(options);
+}

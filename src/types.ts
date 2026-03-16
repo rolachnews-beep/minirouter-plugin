@@ -55,8 +55,6 @@ export interface MiniRouterOptions {
   defaultModel?: string;
   /** Eigene Kategorien (überschreibt Defaults) */
   categories?: ModelCategory[];
-  /** Routing Timeout in ms (default: 10) */
-  timeoutMs?: number;
   /**
    * Welche Request-Types geroutet werden sollen.
    * Default: ['main', 'subagent']

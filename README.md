@@ -71,6 +71,7 @@ MiniRouter hat eingebaute Regeln für Sonderfälle:
 - **Strukturierte Ausgabe** (JSON, YAML) → mindestens MEDIUM
 - **Hohe max_tokens** (>4.000) → REASONING
 - **2+ Reasoning-Keywords** → REASONING (selbst bei niedrigem Score)
+- **2+ Creative-Keywords** → CREATIVE (selbst bei niedrigem Score)
 - **3+ Agentic-Keywords** → AGENTIC (selbst bei niedrigem Score)
 
 ### Multi-Sprachige Erkennung
@@ -139,10 +140,10 @@ Standardmäßig verwendet MiniRouter diese Modelle pro Tier:
 
 | Tier | Primary Model | Fallback |
 |------|---------------|----------|
-| SIMPLE | gemini-2.5-flash-lite | llama-3.1-8b, gemma-2-9b |
-| MEDIUM | gemini-2.5-flash | kimi-k2.5, deepseek-chat |
+| SIMPLE | llama-3.1-8b | gemma-2-9b |
+| MEDIUM | glm-5 | gemini-2.5-flash, deepseek-chat |
 | COMPLEX | claude-sonnet-4.6 | gemini-3.1-pro, gpt-4o |
-| REASONING | o4-mini | grok-4-1-fast-reasoning, deepseek-reasoner |
+| REASONING | minimax-m2.5 | o4-mini, grok-4-1-fast-reasoning |
 | CREATIVE | claude-sonnet-4.6 | mistral-large |
 | AGENTIC | claude-sonnet-4.6 | gemini-3.1-pro |
 
@@ -156,7 +157,7 @@ Erweitere die Plugin-Config in `openclaw.json`:
     "entries": {
       "minirouter": {
         "config": {
-          "defaultModel": "openrouter/meta-llama/llama-3.1-8b-instruct",
+          "defaultModel": "openrouter/minimax/minimax-m2.5",
           "categories": [
             {
               "name": "SIMPLE",
@@ -176,9 +177,8 @@ Erweitere die Plugin-Config in `openclaw.json`:
 
 | Option | Standard | Beschreibung |
 |--------|----------|-------------|
-| `defaultModel` | `openrouter/google/gemini-2.5-flash-lite` | Fallback-Modell |
+| `defaultModel` | `openrouter/minimax/minimax-m2.5` | Fallback-Modell |
 | `categories` | (eingebaute 6 Tiers) | Eigene Kategorien definieren |
-| `timeoutMs` | `10` | Maximalzeit für Routing in ms |
 
 ---
 
@@ -213,7 +213,7 @@ const decision = await mr.decide({
 
 console.log(decision);
 // {
-//   selectedModel: 'openrouter/openai/o4-mini',
+//   selectedModel: 'openrouter/minimax/minimax-m2.5',
 //   category: 'REASONING',
 //   confidence: 0.92,
 //   reasoning: 'Score: 0.523 | Tier: REASONING | Signals: reasoning (beweise, schritt für schritt)',
@@ -264,7 +264,7 @@ Ja, MiniRouter nutzt Modelle über OpenRouter. Du brauchst einen OpenRouter API-
 Ja, entferne `"minirouter"` aus der `allow`-Liste in der Config oder setze `enabled: false`.
 
 **Was passiert bei niedriger Confidence?**
-Das Default-Modell wird verwendet (standardmäßig gemini-2.5-flash-lite — schnell und billig).
+Das Default-Modell wird verwendet (standardmäßig minimax-m2.5).
 
 **Kann ich nur bestimmte Tiers nutzen?**
 Ja, definiere in der Config nur die Kategorien die du brauchst.
