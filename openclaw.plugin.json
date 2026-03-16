@@ -1,0 +1,56 @@
+{
+  "id": "minirouter",
+  "name": "MiniRouter",
+  "description": "Intelligente Model-Auswahl via 15-dimensionaler Scoring Engine. Analysiert jeden Prompt und routet automatisch zum besten Modell.",
+  "version": "2.1.0",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "defaultModel": {
+        "type": "string",
+        "description": "Fallback-Modell wenn kein Override erfolgt"
+      },
+      "confidenceThreshold": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1,
+        "description": "Mindest-Confidence für Model-Override (default: 0.70)"
+      },
+      "logDecisions": {
+        "type": "boolean",
+        "description": "Logge Routing-Entscheidungen ins Gateway-Log (default: false)"
+      },
+      "bypassTriggers": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Trigger-Typen die NICHT geroutet werden (default: heartbeat, cron, memory)"
+      }
+    }
+  },
+  "uiHints": {
+    "defaultModel": {
+      "label": "Default Model",
+      "help": "Fallback-Modell wenn die Scoring-Engine keine sichere Entscheidung treffen kann.",
+      "placeholder": "openrouter/minimax/minimax-m2.5"
+    },
+    "confidenceThreshold": {
+      "label": "Confidence Threshold",
+      "help": "Mindest-Confidence (0-1) damit ein Model-Override stattfindet.",
+      "placeholder": "0.70",
+      "advanced": true
+    },
+    "logDecisions": {
+      "label": "Log Decisions",
+      "help": "Schreibt jede Routing-Entscheidung ins Gateway-Log.",
+      "advanced": true
+    },
+    "bypassTriggers": {
+      "label": "Bypass Triggers",
+      "help": "Trigger-Typen die immer das Default-Modell nutzen (kein Routing).",
+      "advanced": true
+    }
+  }
+}

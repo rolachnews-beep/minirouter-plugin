@@ -1,96 +1,130 @@
-import { createRouter } from './router.js';
-import { MiniRouterRequest, MiniRouterResponse, RoutingDecision, MiniRouterOptions, RequestSource } from './types.js';
-import { MODEL_CATEGORIES, getDefaultCategory } from './models.js';
-
-/** Request-Typen die NICHT geroutet werden (immer bypass) */
-const NEVER_ROUTE: RequestSource[] = ['compaction', 'heartbeat', 'cron'];
-
-export interface MiniRouterPlugin {
-  complete(request: MiniRouterRequest): Promise<MiniRouterResponse>;
-  decide(request: MiniRouterRequest): Promise<RoutingDecision>;
-  decideForSource(request: MiniRouterRequest, source: RequestSource): Promise<RoutingDecision>;
-  healthCheck(): Promise<boolean>;
-}
-
 /**
- * MiniRouter v2 — Intelligente Model-Auswahl für OpenClaw
- * 
- * Routing-Scope:
- * - main (User → Agent Haupt-Chat) ✅
- * - subagent (Sub-Agent Tasks) ✅
- * - compaction / heartbeat / cron ❌ (immer bypass, Config-basiert)
+ * MiniRouter v2.1 — OpenClaw Plugin
+ *
+ * Intelligente Model-Auswahl via 15-dimensionaler Scoring Engine.
+ * Hooked into OpenClaw via `before_model_resolve` lifecycle hook.
+ *
+ * Scoring analysiert den User-Prompt über 15 gewichtete Dimensionen
+ * (inspiriert von ClawRouter) und entscheidet welches Modell am besten
+ * passt: SIMPLE, MEDIUM, COMPLEX, REASONING, CREATIVE oder AGENTIC.
  */
-export class MiniRouter implements MiniRouterPlugin {
-  private router: ReturnType<typeof createRouter>;
-  private defaultModel: string;
-  private routeFor: RequestSource[];
 
-  constructor(options: MiniRouterOptions = {}) {
-    this.defaultModel = options.defaultModel ?? getDefaultCategory().models[0];
-    this.routeFor = options.routeFor ?? ['main', 'subagent'];
-    this.router = createRouter({
-      categories: options.categories,
-      defaultModel: this.defaultModel,
-    });
-  }
+import { createRouter } from './router.js';
+import type { RoutingDecision } from './types.js';
 
-  async complete(request: MiniRouterRequest): Promise<MiniRouterResponse> {
-    throw new Error('API-Call not implemented. Use decide() for routing only.');
-  }
+// ── Types ──────────────────────────────────────────────────────────
 
-  /**
-   * Routing ohne Source-Check (legacy — routet immer)
-   */
-  async decide(request: MiniRouterRequest): Promise<RoutingDecision> {
-    return this.router.route(request);
-  }
-
-  /**
-   * Routing MIT Source-Check — der empfohlene Weg
-   * 
-   * - main / subagent → MiniRouter Scoring
-   * - compaction / heartbeat / cron → sofort bypass (defaultModel)
-   */
-  async decideForSource(request: MiniRouterRequest, source: RequestSource): Promise<RoutingDecision> {
-    if (NEVER_ROUTE.includes(source)) {
-      return {
-        selectedModel: this.defaultModel,
-        category: 'bypass',
-        confidence: 1.0,
-        reasoning: `Bypass: ${source} requests use fixed model (no routing)`,
-        latencyMs: 0,
-      };
-    }
-
-    if (!this.routeFor.includes(source)) {
-      return {
-        selectedModel: this.defaultModel,
-        category: 'bypass',
-        confidence: 1.0,
-        reasoning: `Bypass: source '${source}' not in routeFor [${this.routeFor.join(', ')}]`,
-        latencyMs: 0,
-      };
-    }
-
-    return this.router.route(request);
-  }
-
-  async healthCheck(): Promise<boolean> {
-    try {
-      await this.decide({ prompt: 'hello' });
-      return true;
-    } catch {
-      return false;
-    }
-  }
+/** Plugin-Config aus openclaw.json → plugins.entries.minirouter.config */
+interface MiniRouterPluginConfig {
+  defaultModel?: string;
+  confidenceThreshold?: number;
+  logDecisions?: boolean;
+  bypassTriggers?: string[];
 }
 
-// Export Factory
-export function createMiniRouter(options?: MiniRouterOptions): MiniRouter {
-  return new MiniRouter(options);
+/** OpenClaw Plugin API (Teilmengen-Sicht für TypeScript) */
+interface OpenClawPluginApi {
+  config: Record<string, unknown>;
+  pluginConfig?: Record<string, unknown>;
+  logger: {
+    info: (msg: string) => void;
+    warn: (msg: string) => void;
+    debug?: (msg: string) => void;
+    error: (msg: string) => void;
+  };
+  on: <K extends string>(
+    hookName: K,
+    handler: (event: unknown, ctx: unknown) => unknown,
+    opts?: { priority?: number }
+  ) => void;
 }
 
-// Re-exports
+// ── Defaults ───────────────────────────────────────────────────────
+
+const DEFAULT_MODEL = 'openrouter/minimax/minimax-m2.5';
+const DEFAULT_CONFIDENCE = 0.70;
+const DEFAULT_BYPASS_TRIGGERS = ['heartbeat', 'cron', 'memory'];
+
+// ── Plugin Entry ──────────────────────────────────────────────────
+
+export default function register(api: OpenClawPluginApi): void {
+  // Config lesen
+  const cfg = (api.pluginConfig ?? {}) as MiniRouterPluginConfig;
+  const defaultModel = cfg.defaultModel ?? DEFAULT_MODEL;
+  const confidenceThreshold = cfg.confidenceThreshold ?? DEFAULT_CONFIDENCE;
+  const logDecisions = cfg.logDecisions ?? false;
+  const bypassTriggers = new Set(cfg.bypassTriggers ?? DEFAULT_BYPASS_TRIGGERS);
+
+  // Router initialisieren (mit Default-Modell als Fallback)
+  const router = createRouter({ defaultModel });
+
+  api.logger.info(`MiniRouter v2.1 active — defaultModel: ${defaultModel}, confidenceThreshold: ${confidenceThreshold}, bypassTriggers: [${[...bypassTriggers].join(', ')}]`);
+
+  // ── Hook: before_model_resolve ──────────────────────────────────
+  //
+  // Läuft VOR session load. Hat Zugriff auf:
+  //   event.prompt  → der User-Prompt
+  //   ctx.trigger   → "user" | "heartbeat" | "cron" | "memory"
+  //
+  // Kann zurückgeben:
+  //   modelOverride    → z.B. "openrouter/openai/o4-mini"
+  //   providerOverride → z.B. "ollama"
+  //
+  // Wenn nichts (oder undefined) zurückgegeben wird, bleibt das
+  // konfigurierte Standard-Modell aktiv.
+
+  api.on(
+    'before_model_resolve' as string,
+    async (event: any, ctx: any) => {
+      // ── Bypass: heartbeat, cron, memory → kein Routing ──
+      const trigger = ctx?.trigger as string | undefined;
+      if (trigger && bypassTriggers.has(trigger)) {
+        if (logDecisions) {
+          api.logger.info(`MiniRouter: BYPASS trigger=${trigger} → default model`);
+        }
+        return undefined;
+      }
+
+      // ── Prompt extrahieren ──
+      const prompt: string = event?.prompt ?? '';
+      if (!prompt.trim()) {
+        return undefined;
+      }
+
+      // ── Scoring ──
+      const decision: RoutingDecision = await router.route({ prompt });
+
+      if (logDecisions) {
+        const meta = [
+          `trigger=${trigger ?? 'user'}`,
+          `agent=${ctx?.agentId ?? '?'}`,
+          `channel=${ctx?.channelId ?? '?'}`,
+        ].join(' ');
+        api.logger.info(`MiniRouter: ${decision.category} (conf=${(decision.confidence * 100).toFixed(0)}%) model=${decision.selectedModel} | ${meta} | ${decision.reasoning}`);
+      }
+
+      // ── Confidence Check ──
+      if (decision.confidence < confidenceThreshold) {
+        if (logDecisions) {
+          api.logger.info(`MiniRouter: CONFIDENCE TOO LOW (${(decision.confidence * 100).toFixed(0)}% < ${(confidenceThreshold * 100).toFixed(0)}%) → no override`);
+        }
+        return undefined;
+      }
+
+      // ── Model Override ──
+      if (decision.category === 'DEFAULT' || decision.category === 'bypass') {
+        return undefined;
+      }
+
+      return {
+        modelOverride: decision.selectedModel,
+      };
+    },
+    { priority: 10 },
+  );
+}
+
+// ── Named Exports für direkten Import (Testing / SDK-Nutzung) ──────
+
 export { createRouter } from './router.js';
-export { MODEL_CATEGORIES, getDefaultCategory } from './models.js';
-export * from './types.js';
+export type { RoutingDecision, ModelCategory, MiniRouterRequest } from './types.js';

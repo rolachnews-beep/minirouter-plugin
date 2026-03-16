@@ -1,109 +1,106 @@
-# MiniRouter — Intelligente Model-Auswahl für OpenClaw
+# MiniRouter v2.1 — Intelligente Model-Auswahl für OpenClaw
 
-**MiniRouter** ist ein Plugin für OpenClaw, das automatisch das beste KI-Modell für jede Anfrage auswählt. Du musst dich nicht mehr entscheiden, welches Modell du verwenden sollst — MiniRouter erledigt das für dich.
+**MiniRouter** ist ein OpenClaw-Plugin, das automatisch das beste KI-Modell für jede Anfrage auswählt. Keine manuelle Model-Konfiguration mehr — MiniRouter analysiert jeden Prompt und routet zum passenden Modell.
 
 ---
 
 ## 🎯 Was macht MiniRouter?
 
-Stell dir vor, du stellst OpenClaw verschiedene Fragen:
-
 | Du fragst... | MiniRouter wählt... | Warum? |
 |---|---|---|
-| "Wie spät ist es?" | Ein schnelles, billiges Modell | Einfache Frage → Tier: SIMPLE |
-| "Schreib mir eine Python-Funktion" | Ein Coding-Modell | Code braucht spezialisierte Modelle → Tier: MEDIUM |
-| "Entwerfe eine Microservice-Architektur" | Ein starkes Modell | Komplexe Aufgabe → Tier: COMPLEX |
-| "Beweise den Satz von Pythagoras" | Ein Reasoning-Modell | Logik + Mathematik → Tier: REASONING |
-| "Erzähl mir eine Sci-Fi Geschichte" | Ein kreatives Modell | Kreativität → Tier: CREATIVE |
-| "Lies die Datei, fix den Bug, dann deploy" | Ein starkes Agent-Modell | Multi-Step Aufgabe → Tier: AGENTIC |
+| "Wie spät ist es?" | llama-3.1-8b | Einfache Frage → SIMPLE |
+| "Schreib mir eine Python-Funktion" | glm-5 | Code braucht spezialisierte Modelle → MEDIUM |
+| "Entwerfe eine Microservice-Architektur" | claude-sonnet-4.6 | Komplexe Aufgabe → COMPLEX |
+| "Beweise den Satz von Pythagoras" | minimax-m2.5 | Logik + Mathematik → REASONING |
+| "Erzähl mir eine Sci-Fi Geschichte" | claude-sonnet-4.6 | Kreativität → CREATIVE |
+| "Lies die Datei, fix den Bug, dann deploy" | claude-sonnet-4.6 | Multi-Step Aufgabe → AGENTIC |
 
-**Das Ergebnis:** Du sparst Geld (kleine Modelle sind billiger) und bekommst bessere Antworten (jedes Modell macht, was es am besten kann).
+**Das Ergebnis:** Du sparst Geld (kleine Modelle sind billiger) und bekommst bessere Antworten.
 
 ---
 
-## 📦 So funktioniert es
+## ⚡ So funktioniert es
 
-MiniRouter analysiert jede Anfrage über **15 gewichtete Dimensionen** (inspiriert von [ClawRouter](https://github.com/BlockRunAI/ClawRouter)):
+MiniRouter nutzt den **`before_model_resolve`** Lifecycle Hook von OpenClaw. Vor jedem LLM-Request wird der User-Prompt analysiert und (wenn die Confidence hoch genug ist) das Modell überschrieben.
 
-### Die 15 Dimensionen
+### Die 15 Scoring-Dimensionen
 
-| # | Dimension | Was sie misst | Gewicht |
-|---|-----------|---------------|---------|
-| 1 | **Token Count** | Wie lang ist der Prompt? | 8% |
-| 2 | **Code Presence** | Enthält der Prompt Code-Keywords? | 15% |
-| 3 | **Reasoning Markers** | Braucht es Logik/Mathematik? | 18% |
-| 4 | **Technical Terms** | Sind technische Begriffe dabei? | 10% |
-| 5 | **Creative Markers** | Ist es eine kreative Aufgabe? | 5% |
-| 6 | **Simple Indicators** | Ist es eine einfache Frage? | 2% |
-| 7 | **Multi-Step Patterns** | Gibt es "first...then" Muster? | 10% |
-| 8 | **Question Complexity** | Wie viele Fragezeichen? | 5% |
-| 9 | **Imperative Verbs** | "Bauen", "Erstellen", "Implementieren"? | 3% |
-| 10 | **Constraint Indicators** | "Höchstens", "Mindestens", Budget? | 4% |
-| 11 | **Output Format** | JSON, YAML, Tabelle gewünscht? | 3% |
-| 12 | **Reference Complexity** | Verweist der Prompt auf anderem Text? | 2% |
-| 13 | **Negation Complexity** | "Nicht", "Ohne", "Vermeide"? | 1% |
-| 14 | **Domain Specificity** | Quantum, FPGA, Genomics? | 2% |
-| 15 | **Agentic Task** | File-Ops, Deploy, Iterieren? | 4% |
+| # | Dimension | Gewicht |
+|---|-----------|---------|
+| 1 | Token Count | 9% |
+| 2 | Code Presence | 16% |
+| 3 | Reasoning Markers | 19% |
+| 4 | Technical Terms | 11% |
+| 5 | Creative Markers | 6% |
+| 6 | Simple Indicators | 3% |
+| 7 | Multi-Step Patterns | 10% |
+| 8 | Question Complexity | 5% |
+| 9 | Imperative Verbs | 4% |
+| 10 | Constraint Indicators | 4% |
+| 11 | Output Format | 3% |
+| 12 | Reference Complexity | 2% |
+| 13 | Negation Complexity | 2% |
+| 14 | Domain Specificity | 3% |
+| 15 | Agentic Task | 3% |
 
-### Das Tier-System
+### 6 Tiers
 
-Jede Anfrage wird in ein **Tier** einsortiert:
+- **SIMPLE** — Einfache Fragen, Fakten, Begrüßungen → llama-3.1-8b
+- **MEDIUM** — Code, Erklärungen, Tutorials → glm-5
+- **COMPLEX** — Architektur, Analyse, Optimierung → claude-sonnet-4.6
+- **REASONING** — Beweise, Mathematik, Logik → minimax-m2.5
+- **CREATIVE** — Geschichten, Gedichte, Brainstorming → claude-sonnet-4.6
+- **AGENTIC** — Multi-Step Tasks, File-Ops, Deployment → claude-sonnet-4.6
 
-```
-SIMPLE ←→ MEDIUM ←→ COMPLEX ←→ REASONING
-                        ↑
-                   CREATIVE (parallel)
-                   AGENTIC (parallel)
-```
+### Smart Bypass
 
-- **SIMPLE** — Einfache Fragen, Fakten, Begrüßungen
-- **MEDIUM** — Code, Erklärungen, Tutorials
-- **COMPLEX** — Architektur, Analyse, Optimierung
-- **REASONING** — Beweise, Mathematik, Logik
-- **CREATIVE** — Geschichten, Gedichte, Brainstorming
-- **AGENTIC** — Multi-Step Tasks, File-Ops, Deployment
+MiniRouter routet **nicht** bei:
+- **Heartbeat** Polls → Default-Modell
+- **Cron** Jobs → Default-Modell
+- **Memory** Events → Default-Modell
 
-### Sonderfälle (Overrides)
-
-MiniRouter hat eingebaute Regeln für Sonderfälle:
-
-- **Großer Prompt** (>25.000 Tokens) → automatisch COMPLEX
-- **Strukturierte Ausgabe** (JSON, YAML) → mindestens MEDIUM
-- **Hohe max_tokens** (>4.000) → REASONING
-- **2+ Reasoning-Keywords** → REASONING (selbst bei niedrigem Score)
-- **2+ Creative-Keywords** → CREATIVE (selbst bei niedrigem Score)
-- **3+ Agentic-Keywords** → AGENTIC (selbst bei niedrigem Score)
-
-### Multi-Sprachige Erkennung
-
-MiniRouter versteht Keywords in **9 Sprachen**:
-🇬🇧 English · 🇩🇪 Deutsch · 🇨🇳 中文 · 🇯🇵 日本語 · 🇷🇺 Русский · 🇪🇸 Español · 🇧🇷 Português · 🇰🇷 한국어 · 🇸🇦 العربية
+Diese nutzen immer das konfigurierte Standard-Modell (kein Overhead).
 
 ### Confidence Calibration
 
-MiniRouter gibt eine **Confidence** (0–100%) mit jeder Entscheidung. Niedrige Confidence → das Model ist sich unsicher → Fallback auf DEFAULT.
+Jede Entscheidung hat eine **Confidence** (0–100%). Unter dem Schwellenwert (default 70%) wird nicht geroutet → das Standard-Modell bleibt aktiv. So werden Fehlroutings vermieden.
+
+### Override-Regeln
+
+- Großer Prompt (>25K Tokens) → automatisch COMPLEX
+- Strukturierte Ausgabe (JSON, YAML) → mindestens MEDIUM
+- Hohe max_tokens (>4K) → REASONING
+- 2+ Reasoning-Keywords → REASONING (selbst bei niedrigem Score)
+- 2+ Creative-Keywords → CREATIVE (selbst bei niedrigem Score)
+- 3+ Agentic-Keywords → AGENTIC (selbst bei niedrigem Score)
+
+### Multi-Sprachige Erkennung
+
+Keywords in **9 Sprachen**: 🇬🇧 English · 🇩🇪 Deutsch · 🇨🇳 中文 · 🇯🇵 日本語 · 🇷🇺 Русский · 🇪🇸 Español · 🇧🇷 Português · 🇰🇷 한국어 · 🇸🇦 العربية
 
 ---
 
-## 🚀 Installation in OpenClaw
+## 🚀 Installation
 
-### Schritt 1: Plugin herunterladen
-
-Öffne dein Terminal auf dem Server wo OpenClaw läuft und gib ein:
+### Option A: Von GitHub (empfohlen)
 
 ```bash
 cd ~/.openclaw
-git clone https://github.com/rolachnews-beep/minirouter-plugin.git plugins/minirouter
-cd plugins/minirouter
+git clone https://github.com/rolachnews-beep/minirouter-plugin.git extensions/minirouter
+cd extensions/minirouter
 npm install
 npm run build
 ```
 
-### Schritt 2: OpenClaw Config bearbeiten
+### Option B: Lokal entwickeln
 
-Öffne die Datei `~/.openclaw/openclaw.json` und füge das Plugin hinzu.
+```bash
+openclaw plugins install ./pfad/zum/minirouter-plugin
+```
 
-**Finde den `plugins`-Abschnitt** (oder erstelle ihn, falls er nicht existiert) und kopiere Folgendes:
+### Schritt 2: OpenClaw Config
+
+Füge MiniRouter zur Config hinzu:
 
 ```json
 {
@@ -112,7 +109,9 @@ npm run build
     "entries": {
       "minirouter": {
         "config": {
-          "defaultModel": "openrouter/meta-llama/llama-3.1-8b-instruct"
+          "defaultModel": "openrouter/minimax/minimax-m2.5",
+          "confidenceThreshold": 0.70,
+          "logDecisions": false
         }
       }
     }
@@ -120,26 +119,31 @@ npm run build
 }
 ```
 
-> **Wichtig:** Falls `plugins` schon existiert, füge `"minirouter"` zur `allow`-Liste hinzu und den `minirouter`-Eintrag unter `entries` dazu — überschreibe nicht die bestehenden Einträge!
+> **Wichtig:** `"minirouter"` zur `allow`-Liste hinzufügen und den Eintrag unter `entries` hinzufügen — bestehende Einträge nicht überschreiben!
 
-### Schritt 3: OpenClaw neu starten
+### Schritt 3: Restart
 
 ```bash
 openclaw gateway restart
 ```
 
-Fertig! MiniRouter ist jetzt aktiv.
+Fertig! MiniRouter ist jetzt aktiv und routet automatisch.
 
 ---
 
 ## ⚙️ Konfiguration
 
-### Modelle anpassen
+| Option | Default | Beschreibung |
+|--------|---------|-------------|
+| `defaultModel` | `openrouter/minimax/minimax-m2.5` | Fallback-Modell |
+| `confidenceThreshold` | `0.70` | Mindest-Confidence für Override |
+| `logDecisions` | `false` | Routing-Entscheidungen loggen |
+| `bypassTriggers` | `["heartbeat","cron","memory"]` | Triggers die nicht geroutet werden |
 
-Standardmäßig verwendet MiniRouter diese Modelle pro Tier:
+### Modelle pro Tier
 
-| Tier | Primary Model | Fallback |
-|------|---------------|----------|
+| Tier | Primary | Fallback |
+|------|---------|----------|
 | SIMPLE | llama-3.1-8b | gemma-2-9b |
 | MEDIUM | glm-5 | gemini-2.5-flash, deepseek-chat |
 | COMPLEX | claude-sonnet-4.6 | gemini-3.1-pro, gpt-4o |
@@ -147,127 +151,67 @@ Standardmäßig verwendet MiniRouter diese Modelle pro Tier:
 | CREATIVE | claude-sonnet-4.6 | mistral-large |
 | AGENTIC | claude-sonnet-4.6 | gemini-3.1-pro |
 
-### Eigene Modelle konfigurieren
-
-Erweitere die Plugin-Config in `openclaw.json`:
-
-```json
-{
-  "plugins": {
-    "entries": {
-      "minirouter": {
-        "config": {
-          "defaultModel": "openrouter/minimax/minimax-m2.5",
-          "categories": [
-            {
-              "name": "SIMPLE",
-              "models": ["openrouter/mein/eigenes-modell"],
-              "keywords": ["hallo", "hi", "was ist"],
-              "useCases": ["simple-qa"]
-            }
-          ]
-        }
-      }
-    }
-  }
-}
-```
-
-### Optionen
-
-| Option | Standard | Beschreibung |
-|--------|----------|-------------|
-| `defaultModel` | `openrouter/minimax/minimax-m2.5` | Fallback-Modell |
-| `categories` | (eingebaute 6 Tiers) | Eigene Kategorien definieren |
-
 ---
 
 ## 🔧 Für Entwickler
 
-### Projektstruktur
+### Architektur
 
 ```
 minirouter-plugin/
+├── openclaw.plugin.json    ← Plugin Manifest (ID + Config Schema)
+├── package.json            ← openclaw.extensions Entry Point
 ├── src/
-│   ├── index.ts      ← Plugin Entry Point + Factory
-│   ├── router.ts     ← 15-Dimension Scoring Engine
-│   ├── models.ts     ← 6 Tier-Kategorien (9 Sprachen)
-│   └── types.ts      ← TypeScript Interfaces
-├── dist/             ← Kompiliert (nach npm run build)
-├── package.json
-├── tsconfig.json
+│   ├── index.ts            ← Plugin register() + before_model_resolve Hook
+│   ├── router.ts           ← 15-Dimension Scoring Engine
+│   ├── models.ts           ← 6 Tiers (9 Sprachen, Keywords)
+│   └── types.ts            ← TypeScript Interfaces
+├── dist/                   ← Kompiliert (nach npm run build)
 └── README.md
 ```
 
-### Als Modul nutzen
+### Wie der Hook funktioniert
 
 ```typescript
-import { createMiniRouter } from '@openclaw/minirouter';
-
-const mr = createMiniRouter();
-
-// Routing-Entscheidung holen
-const decision = await mr.decide({
-  prompt: 'Beweise den Satz von Pythagoras schritt für schritt'
+// Jeder Prompt läuft durch diesen Flow:
+api.on("before_model_resolve", async (event, ctx) => {
+  const decision = router.route({ prompt: event.prompt });
+  if (decision.confidence >= 0.70) {
+    return { modelOverride: decision.selectedModel };
+  }
+  // undefined = kein Override, Standard-Modell bleibt
 });
-
-console.log(decision);
-// {
-//   selectedModel: 'openrouter/minimax/minimax-m2.5',
-//   category: 'REASONING',
-//   confidence: 0.92,
-//   reasoning: 'Score: 0.523 | Tier: REASONING | Signals: reasoning (beweise, schritt für schritt)',
-//   latencyMs: 1
-// }
 ```
 
-### Keywords erweitern
+### Direct Import (Testing)
 
-Bearbeite `src/models.ts` um Keywords hinzuzufügen. Danach:
+```typescript
+import { createRouter } from './dist/router.js';
 
-```bash
-cd ~/.openclaw/plugins/minirouter
-npm run build
-openclaw gateway restart
+const router = createRouter({ defaultModel: 'openrouter/minimax/minimax-m2.5' });
+const decision = await router.route({ prompt: 'Beweise den Satz von Pythagoras' });
+
+console.log(decision);
+// { selectedModel: 'openrouter/minimax/minimax-m2.5', category: 'REASONING', confidence: 0.92, ... }
 ```
 
 ---
 
-## 🆚 Vergleich: MiniRouter vs. ClawRouter
+## 🆚 MiniRouter vs. ClawRouter
 
 | Feature | MiniRouter | ClawRouter |
 |---------|-----------|------------|
-| Scoring Dimensionen | 15 | 15 |
-| Sprachen | 9 (EN,DE,ZH,JA,RU,ES,PT,KO,AR) | 9 |
+| Integration | OpenClaw Plugin (Lifecycle Hook) | Standalone Proxy |
+| Scoring | 15 Dimensionen | 15 Dimensionen |
+| Sprachen | 9 | 9 |
 | Confidence | Sigmoid Calibration | Sigmoid Calibration |
-| Latenz | <1ms | <1ms |
+| Latenz | <1ms (in-process) | <1ms |
 | Tiers | 6 (incl. CREATIVE, AGENTIC) | 4 |
 | Payment | OpenRouter API Key | USDC (x402) |
 | Open Source | ✅ MIT | ✅ MIT |
-| Override-Regeln | ✅ | ✅ |
-| Agentic Detection | ✅ | ✅ |
 
 ---
 
 ## 📄 Lizenz
 
 MIT — frei nutzbar und anpassbar.
-
----
-
-## ❓ Häufige Fragen
-
-**Muss ich OpenRouter haben?**
-Ja, MiniRouter nutzt Modelle über OpenRouter. Du brauchst einen OpenRouter API-Key.
-
-**Kann ich MiniRouter ausschalten?**
-Ja, entferne `"minirouter"` aus der `allow`-Liste in der Config oder setze `enabled: false`.
-
-**Was passiert bei niedriger Confidence?**
-Das Default-Modell wird verwendet (standardmäßig minimax-m2.5).
-
-**Kann ich nur bestimmte Tiers nutzen?**
-Ja, definiere in der Config nur die Kategorien die du brauchst.
-
-**Wie schnell ist das Routing?**
-<1ms — alles läuft lokal, keine externen API-Calls nötig.

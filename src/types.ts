@@ -1,5 +1,6 @@
-// MiniRouter Plugin Types v2
+// MiniRouter Plugin Types v2.1
 
+/** Eingabe für den Router */
 export interface MiniRouterRequest {
   prompt: string;
   model?: string;
@@ -8,26 +9,11 @@ export interface MiniRouterRequest {
   stream?: boolean;
 }
 
-export interface MiniRouterResponse {
-  id: string;
-  choices: Array<{
-    message: {
-      role: string;
-      content: string;
-    };
-    finish_reason: string;
-  }>;
-  usage?: {
-    prompt_tokens: number;
-    completion_tokens: number;
-    total_tokens: number;
-  };
-}
-
+/** Ergebnis einer Routing-Entscheidung */
 export interface RoutingDecision {
   /** Gewähltes Model (OpenRouter ID) */
   selectedModel: string;
-  /** Tier/Kategorie: SIMPLE | MEDIUM | COMPLEX | REASONING | CREATIVE | AGENTIC | explicit */
+  /** Tier/Kategorie: SIMPLE | MEDIUM | COMPLEX | REASONING | CREATIVE | AGENTIC | DEFAULT */
   category: string;
   /** Confidence 0-1 (sigmoid calibrated) */
   confidence: number;
@@ -37,6 +23,7 @@ export interface RoutingDecision {
   latencyMs: number;
 }
 
+/** Model-Kategorie / Tier */
 export interface ModelCategory {
   /** Tier-Name */
   name: string;
@@ -46,21 +33,6 @@ export interface ModelCategory {
   keywords: string[];
   /** Use Cases für diese Kategorie */
   useCases: string[];
-}
-
-export type RequestSource = 'main' | 'subagent' | 'compaction' | 'heartbeat' | 'cron';
-
-export interface MiniRouterOptions {
-  /** Fallback-Model wenn nichts erkannt wird */
-  defaultModel?: string;
-  /** Eigene Kategorien (überschreibt Defaults) */
-  categories?: ModelCategory[];
-  /**
-   * Welche Request-Types geroutet werden sollen.
-   * Default: ['main', 'subagent']
-   * Andere (compaction, heartbeat, cron) werden immer bypassed.
-   */
-  routeFor?: RequestSource[];
 }
 
 /** Dimension Score (intern, für Debug) */
