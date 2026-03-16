@@ -10,7 +10,7 @@
  */
 import { createRouter } from './router.js';
 // ── Defaults ───────────────────────────────────────────────────────
-const DEFAULT_MODEL = 'openrouter/minimax/minimax-m2.5';
+const DEFAULT_MODEL = 'minimax/minimax-m2.5';
 const DEFAULT_CONFIDENCE = 0.70;
 const DEFAULT_BYPASS_TRIGGERS = ['heartbeat', 'cron', 'memory'];
 // ── Plugin Entry ──────────────────────────────────────────────────
@@ -31,7 +31,7 @@ export default function register(api) {
     //   ctx.trigger   → "user" | "heartbeat" | "cron" | "memory"
     //
     // Kann zurückgeben:
-    //   modelOverride    → z.B. "openrouter/openai/o4-mini"
+    //   modelOverride    → z.B. "openai/o4-mini" (ohne provider prefix!)
     //   providerOverride → z.B. "ollama"
     //
     // Wenn nichts (oder undefined) zurückgegeben wird, bleibt das

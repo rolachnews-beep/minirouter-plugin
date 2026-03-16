@@ -15,8 +15,8 @@ export const MODEL_CATEGORIES = [
     {
         name: 'SIMPLE',
         models: [
-            'openrouter/meta-llama/llama-3.1-8b-instruct',
-            'openrouter/google/gemma-2-9b-it',
+            'meta-llama/llama-3.1-8b-instruct',
+            'google/gemma-2-9b-it',
         ],
         keywords: [
             // === English ===
@@ -59,9 +59,9 @@ export const MODEL_CATEGORIES = [
     {
         name: 'MEDIUM',
         models: [
-            'openrouter/z-ai/glm-5-turbo',
-            'openrouter/google/gemini-2.5-flash',
-            'openrouter/deepseek/deepseek-chat',
+            'z-ai/glm-5-turbo',
+            'google/gemini-2.5-flash',
+            'deepseek/deepseek-chat',
         ],
         keywords: [
             // === English ===
@@ -118,9 +118,9 @@ export const MODEL_CATEGORIES = [
     {
         name: 'COMPLEX',
         models: [
-            'openrouter/anthropic/claude-sonnet-4.6',
-            'openrouter/google/gemini-3-pro-preview',
-            'openrouter/openai/gpt-4o',
+            'anthropic/claude-sonnet-4.6',
+            'google/gemini-3-pro-preview',
+            'openai/gpt-4o',
         ],
         keywords: [
             // === English ===
@@ -178,9 +178,9 @@ export const MODEL_CATEGORIES = [
     {
         name: 'REASONING',
         models: [
-            'openrouter/minimax/minimax-m2.5',
-            'openrouter/openai/o4-mini',
-            'openrouter/x-ai/grok-4.1-fast',
+            'minimax/minimax-m2.5',
+            'openai/o4-mini',
+            'x-ai/grok-4.1-fast',
         ],
         keywords: [
             // === English ===
@@ -236,8 +236,8 @@ export const MODEL_CATEGORIES = [
     {
         name: 'CREATIVE',
         models: [
-            'openrouter/anthropic/claude-sonnet-4.6',
-            'openrouter/mistralai/mistral-large',
+            'anthropic/claude-sonnet-4.6',
+            'mistralai/mistral-large',
         ],
         keywords: [
             // === English ===
@@ -289,8 +289,8 @@ export const MODEL_CATEGORIES = [
     {
         name: 'AGENTIC',
         models: [
-            'openrouter/anthropic/claude-sonnet-4.6',
-            'openrouter/google/gemini-3-pro-preview',
+            'anthropic/claude-sonnet-4.6',
+            'google/gemini-3-pro-preview',
         ],
         keywords: [
             // === English ===
@@ -350,7 +350,7 @@ export function getDefaultCategory() {
     return {
         name: 'DEFAULT',
         models: [
-            'openrouter/minimax/minimax-m2.5',
+            'minimax/minimax-m2.5',
         ],
         keywords: [],
         useCases: ['fallback'],

@@ -109,7 +109,7 @@ Füge MiniRouter zur Config hinzu:
     "entries": {
       "minirouter": {
         "config": {
-          "defaultModel": "openrouter/minimax/minimax-m2.5",
+          "defaultModel": "minimax/minimax-m2.5",
           "confidenceThreshold": 0.70,
           "logDecisions": false
         }
@@ -193,7 +193,7 @@ Beispiel — falls die Config bereits andere Plugins hat:
       "existing-plugin": { ... },
       "minirouter": {
         "config": {
-          "defaultModel": "openrouter/minimax/minimax-m2.5",
+          "defaultModel": "minimax/minimax-m2.5",
           "confidenceThreshold": 0.70,
           "logDecisions": true
         }
@@ -217,7 +217,7 @@ openclaw gateway restart
 
 Nach dem Restart sollte im Gateway-Log erscheinen:
 ```
-MiniRouter v2.1 active — defaultModel: openrouter/minimax/minimax-m2.5, confidenceThreshold: 0.70, bypassTriggers: [heartbeat, cron, memory]
+MiniRouter v2.1 active — defaultModel: minimax/minimax-m2.5, confidenceThreshold: 0.70, bypassTriggers: [heartbeat, cron, memory]
 ```
 
 Wenn diese Zeile fehlt → Plugin wurde nicht geladen. Mögliche Gründe:
@@ -263,7 +263,7 @@ Bei Heartbeat/Cron/Messages sollten NO Routing-Zeilen erscheinen — diese werde
 
 | Option | Default | Beschreibung |
 |--------|---------|-------------|
-| `defaultModel` | `openrouter/minimax/minimax-m2.5` | Fallback-Modell |
+| `defaultModel` | `minimax/minimax-m2.5` | Fallback-Modell |
 | `confidenceThreshold` | `0.70` | Mindest-Confidence für Override |
 | `logDecisions` | `false` | Routing-Entscheidungen loggen |
 | `bypassTriggers` | `["heartbeat","cron","memory"]` | Triggers die nicht geroutet werden |
@@ -316,11 +316,11 @@ api.on("before_model_resolve", async (event, ctx) => {
 ```typescript
 import { createRouter } from './dist/router.js';
 
-const router = createRouter({ defaultModel: 'openrouter/minimax/minimax-m2.5' });
+const router = createRouter({ defaultModel: 'minimax/minimax-m2.5' });
 const decision = await router.route({ prompt: 'Beweise den Satz von Pythagoras' });
 
 console.log(decision);
-// { selectedModel: 'openrouter/minimax/minimax-m2.5', category: 'REASONING', confidence: 0.92, ... }
+// { selectedModel: 'minimax/minimax-m2.5', category: 'REASONING', confidence: 0.92, ... }
 ```
 
 ---
