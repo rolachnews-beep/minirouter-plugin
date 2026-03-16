@@ -164,8 +164,11 @@ export class Router {
                 return { models: cat.models, name: cat.name, reason: `Large context (${estimatedTokens} tokens)` };
         }
         // Structured Output → mindestens MEDIUM
+        // Nur triggern wenn explizit danach gefragt wird (nicht wenn Keywords nur
+        // im System-Prompt vorkommen). Pattern: aktive Anfrage + Format-Keyword.
         const lowerPrompt = request.prompt.toLowerCase();
-        if (/\b(json|yaml|xml|csv|structured|schema)\b/.test(lowerPrompt)) {
+        if (/\b(als|as|in|im|into|to|output|format|return|respond|give|export|parse)\b.*\b(json|yaml|xml|csv|schema)\b/.test(lowerPrompt) ||
+            /\b(json|yaml|xml|csv|schema)\b.*\b(als|as|in|im|into|to|output|format|return|respond|give|export|parse)\b/.test(lowerPrompt)) {
             const cat = this.categories.find(c => c.name === 'MEDIUM');
             if (cat)
                 return { models: cat.models, name: cat.name, reason: 'Structured output requested' };
