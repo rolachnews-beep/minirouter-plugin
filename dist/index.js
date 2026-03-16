@@ -50,6 +50,10 @@ export default function register(api) {
         if (!prompt.trim()) {
             return undefined;
         }
+        // DEBUG: Log prompt length to understand what we receive
+        if (logDecisions && prompt.length > 500) {
+            api.logger.info(`MiniRouter: DEBUG prompt.length=${prompt.length} first200="${prompt.slice(0, 200).replace(/\n/g, ' ')}..."`);
+        }
         // ── Scoring ──
         const decision = await router.route({ prompt });
         if (logDecisions) {
@@ -62,12 +66,13 @@ export default function register(api) {
         }
         // ── Confidence Check ──
         // LOW confidence + SIMPLE → DOWNGRADE (cheaper model for trivial prompts)
+        // LOW confidence + MEDIUM → DOWNGRADE (moderate prompts don't need expensive models)
         // LOW confidence + other tier → no override (don't upgrade without confidence)
         // HIGH confidence → always override (upgrade or downgrade as scored)
         if (decision.confidence < confidenceThreshold) {
-            if (decision.category === 'SIMPLE') {
+            if (decision.category === 'SIMPLE' || decision.category === 'MEDIUM') {
                 if (logDecisions) {
-                    api.logger.info(`MiniRouter: DOWNGRADE to ${decision.selectedModel} (low confidence but clearly simple)`);
+                    api.logger.info(`MiniRouter: DOWNGRADE to ${decision.selectedModel} (low confidence but ${decision.category})`);
                 }
                 return { modelOverride: decision.selectedModel };
             }

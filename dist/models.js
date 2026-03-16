@@ -72,8 +72,9 @@ export const MODEL_CATEGORIES = [
             // === German ===
             'code', 'funktion', 'klasse', 'debug', 'implementieren',
             'programm', 'skript', 'fehler', 'bug', 'beheben', 'refaktorieren',
-            'schreibe eine', 'erstelle eine', 'baue eine', 'wie kann ich',
+            'schreibe ein', 'erstelle ein', 'baue ein', 'wie kann ich',
             'erkläre', 'anleitung', 'einrichten', 'konfigurieren',
+            'programmier', 'code snippet', 'algorithmus', 'variable', 'methode',
             // === Chinese ===
             '代码', '函数', '类', '调试', '实现', '程序',
             '脚本', '接口', '错误', '修复', '重构',
