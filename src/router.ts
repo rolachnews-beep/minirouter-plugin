@@ -159,6 +159,7 @@ export class Router {
     // ── Tier Selection ──
     const tier = this.selectTier(weightedScore);
     const category = this.categories.find(c => c.name === tier) ?? getDefaultCategory();
+    const isDefault = category.name === 'DEFAULT';
 
     return {
       selectedModel: category.models[0],

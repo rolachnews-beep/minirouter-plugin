@@ -357,5 +357,12 @@ export const MODEL_CATEGORIES: ModelCategory[] = [
  * Fallback-Tier wenn keine Erkennung möglich
  */
 export function getDefaultCategory(): ModelCategory {
-  return MODEL_CATEGORIES[0]; // 'SIMPLE' als Default
+  return {
+    name: 'DEFAULT',
+    models: [
+      'openrouter/minimax/minimax-m2.5',
+    ],
+    keywords: [],
+    useCases: ['fallback'],
+  };
 }
