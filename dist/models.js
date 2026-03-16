@@ -16,7 +16,7 @@ export const MODEL_CATEGORIES = [
         name: 'SIMPLE',
         models: [
             'openrouter/meta-llama/llama-3.1-8b-instruct',
-            'openrouter/google/gemma-2-9b-instruct',
+            'openrouter/google/gemma-2-9b-it',
         ],
         keywords: [
             // === English ===
@@ -59,7 +59,7 @@ export const MODEL_CATEGORIES = [
     {
         name: 'MEDIUM',
         models: [
-            'openrouter/z-ai/glm-5',
+            'openrouter/z-ai/glm-5-turbo',
             'openrouter/google/gemini-2.5-flash',
             'openrouter/deepseek/deepseek-chat',
         ],
@@ -119,7 +119,7 @@ export const MODEL_CATEGORIES = [
         name: 'COMPLEX',
         models: [
             'openrouter/anthropic/claude-sonnet-4.6',
-            'openrouter/google/gemini-3.1-pro',
+            'openrouter/google/gemini-3-pro-preview',
             'openrouter/openai/gpt-4o',
         ],
         keywords: [
@@ -180,7 +180,7 @@ export const MODEL_CATEGORIES = [
         models: [
             'openrouter/minimax/minimax-m2.5',
             'openrouter/openai/o4-mini',
-            'openrouter/x-ai/grok-4-1-fast-reasoning',
+            'openrouter/x-ai/grok-4.1-fast',
         ],
         keywords: [
             // === English ===
@@ -290,7 +290,7 @@ export const MODEL_CATEGORIES = [
         name: 'AGENTIC',
         models: [
             'openrouter/anthropic/claude-sonnet-4.6',
-            'openrouter/google/gemini-3.1-pro',
+            'openrouter/google/gemini-3-pro-preview',
         ],
         keywords: [
             // === English ===
