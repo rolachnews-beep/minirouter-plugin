@@ -1,69 +1,52 @@
 import { router } from './router.js';
-import { MiniRouterRequest, MiniRouterResponse, RoutingDecision, MiniRouterOptions } from './types.js';
+import { MiniRouterRequest, MiniRouterResponse, RoutingDecision, MiniRouterOptions, RequestSource } from './types.js';
+
+/** Request-Typen die NICHT geroutet werden (immer bypass) */
+const NEVER_ROUTE: RequestSource[] = ['compaction', 'heartbeat', 'cron'];
 
 export interface MiniRouterPlugin {
-  /**
-   * Haupteinstieg: Request senden und automatisch richtig routen
-   */
   complete(request: MiniRouterRequest): Promise<MiniRouterResponse>;
-
-  /**
-   * Nur Routing-Entscheidung holen (ohne API-Call)
-   */
   decide(request: MiniRouterRequest): Promise<RoutingDecision>;
-
-  /**
-   * Health Check
-   */
+  decideForSource(request: MiniRouterRequest, source: RequestSource): Promise<RoutingDecision>;
   healthCheck(): Promise<boolean>;
 }
 
 /**
  * MiniRouter v2 — Intelligente Model-Auswahl für OpenClaw
  * 
- * 15-dimensionale gewichtete Scoring, inspiriert von ClawRouter:
- * - Token Count, Code Presence, Reasoning Markers, Technical Terms
- * - Creative Markers, Simple Indicators, Multi-Step Patterns
- * - Question Complexity, Imperative Verbs, Constraints
- * - Output Format, References, Negation, Domain Specificity, Agentic
- * 
- * Sigmoid Confidence Calibration, Tier-System, <1ms Latenz.
+ * Routing-Scope:
+ * - main (User → Agent Haupt-Chat) ✅
+ * - subagent (Sub-Agent Tasks) ✅
+ * - compaction / heartbeat / cron ❌ (immer bypass, Config-basiert)
  * 
  * Verwendung:
  * ```typescript
  * import { createMiniRouter } from '@openclaw/minirouter';
  * 
  * const mr = createMiniRouter({
- *   defaultModel: 'openrouter/meta-llama/llama-3.1-8b-instruct'
+ *   defaultModel: 'openrouter/minimax/minimax-m2.5',
+ *   routeFor: ['main', 'subagent']
  * });
  * 
- * const decision = await mr.decide({
- *   prompt: 'Beweise den Satz von Pythagoras schritt für schritt'
- * });
- * // → category: 'REASONING', model: 'openrouter/openai/o4-mini'
+ * // Mit Source-Angabe — compaction/heartbeat/cron → sofort bypass
+ * const decision = await mr.decideForSource(request, 'subagent');
  * ```
  */
 export class MiniRouter implements MiniRouterPlugin {
   private defaultModel?: string;
+  private routeFor: RequestSource[];
 
   constructor(options: MiniRouterOptions = {}) {
     this.defaultModel = options.defaultModel;
+    this.routeFor = options.routeFor ?? ['main', 'subagent'];
   }
 
-  /**
-   * Request + API-Call (noch nicht implementiert — nutze decide() für Routing)
-   */
   async complete(request: MiniRouterRequest): Promise<MiniRouterResponse> {
     throw new Error('API-Call not implemented. Use decide() for routing only.');
   }
 
   /**
-   * Nur Routing-Entscheidung holen (ohne API-Call)
-   * 
-   * Dies ist die Hauptmethode:
-   * - Analysiert den Prompt über 15 Dimensionen
-   * - Berechnet weighted score + sigmoid confidence
-   * - Gibt Tier + Model + Begründung zurück
+   * Routing ohne Source-Check (legacy — routet immer)
    */
   async decide(request: MiniRouterRequest): Promise<RoutingDecision> {
     if (this.defaultModel && !request.model) {
@@ -73,8 +56,43 @@ export class MiniRouter implements MiniRouterPlugin {
   }
 
   /**
-   * Health Check
+   * Routing MIT Source-Check — der empfohlene Weg
+   * 
+   * - main / subagent → MiniRouter Scoring
+   * - compaction / heartbeat / cron → sofort bypass (defaultModel oder original)
    */
+  async decideForSource(request: MiniRouterRequest, source: RequestSource): Promise<RoutingDecision> {
+    // Bypass für System-Request-Typen
+    if (NEVER_ROUTE.includes(source)) {
+      const bypassModel = this.defaultModel ?? request.model ?? 'openrouter/minimax/minimax-m2.5';
+      return {
+        selectedModel: bypassModel,
+        category: 'bypass',
+        confidence: 1.0,
+        reasoning: `Bypass: ${source} requests use fixed model (no routing)`,
+        latencyMs: 0,
+      };
+    }
+
+    // Nur routen wenn source in routeFor-Liste
+    if (!this.routeFor.includes(source)) {
+      const bypassModel = this.defaultModel ?? request.model ?? 'openrouter/minimax/minimax-m2.5';
+      return {
+        selectedModel: bypassModel,
+        category: 'bypass',
+        confidence: 1.0,
+        reasoning: `Bypass: source '${source}' not in routeFor [${this.routeFor.join(', ')}]`,
+        latencyMs: 0,
+      };
+    }
+
+    // Normaler Routing-Flow
+    if (this.defaultModel && !request.model) {
+      request = { ...request, model: this.defaultModel };
+    }
+    return router.route(request);
+  }
+
   async healthCheck(): Promise<boolean> {
     try {
       await this.decide({ prompt: 'hello' });

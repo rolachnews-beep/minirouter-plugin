@@ -48,6 +48,8 @@ export interface ModelCategory {
   useCases: string[];
 }
 
+export type RequestSource = 'main' | 'subagent' | 'compaction' | 'heartbeat' | 'cron';
+
 export interface MiniRouterOptions {
   /** Fallback-Model wenn nichts erkannt wird */
   defaultModel?: string;
@@ -55,6 +57,12 @@ export interface MiniRouterOptions {
   categories?: ModelCategory[];
   /** Routing Timeout in ms (default: 10) */
   timeoutMs?: number;
+  /**
+   * Welche Request-Types geroutet werden sollen.
+   * Default: ['main', 'subagent']
+   * Andere (compaction, heartbeat, cron) werden immer bypassed.
+   */
+  routeFor?: RequestSource[];
 }
 
 /** Dimension Score (intern, für Debug) */
