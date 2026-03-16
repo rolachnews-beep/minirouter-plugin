@@ -104,7 +104,16 @@ export default function register(api: OpenClawPluginApi): void {
       }
 
       // ── Confidence Check ──
+      // LOW confidence + SIMPLE → DOWNGRADE (cheaper model for trivial prompts)
+      // LOW confidence + other tier → no override (don't upgrade without confidence)
+      // HIGH confidence → always override (upgrade or downgrade as scored)
       if (decision.confidence < confidenceThreshold) {
+        if (decision.category === 'SIMPLE') {
+          if (logDecisions) {
+            api.logger.info(`MiniRouter: DOWNGRADE to ${decision.selectedModel} (low confidence but clearly simple)`);
+          }
+          return { modelOverride: decision.selectedModel };
+        }
         if (logDecisions) {
           api.logger.info(`MiniRouter: CONFIDENCE TOO LOW (${(decision.confidence * 100).toFixed(0)}% < ${(confidenceThreshold * 100).toFixed(0)}%) → no override`);
         }
