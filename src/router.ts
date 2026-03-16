@@ -1,5 +1,5 @@
 import { MODEL_CATEGORIES, getDefaultCategory } from './models.js';
-import { MiniRouterRequest, RoutingDecision, ModelCategory } from './types.js';
+import { MiniRouterRequest, RoutingDecision, ModelCategory, DimensionScore } from './types.js';
 
 // ═══════════════════════════════════════════════════════════════
 // MiniRouter v2 — Weighted Scoring Router
@@ -7,16 +7,10 @@ import { MiniRouterRequest, RoutingDecision, ModelCategory } from './types.js';
 // Inspiriert von ClawRouter's 15-dimensionaler Scoring-Engine:
 // - 15 Dimensionen mit individuellen Weights
 // - Sigmoid Confidence Calibration
-// - Tier-System (SIMPLE → REASONING)
+// - Tier-System (SIMPLE → REASONING) + CREATIVE + AGENTIC
 // - Override-Regeln für Sonderfälle
 // - <1ms Latenz (100% local, keine externen API-Calls)
 // ═══════════════════════════════════════════════════════════════
-
-interface DimensionScore {
-  name: string;
-  score: number;    // [-1, 1]
-  signal: string | null;
-}
 
 // Dimension Weights (sum ≈ 1.0)
 const DIMENSION_WEIGHTS: Record<string, number> = {
@@ -46,7 +40,6 @@ const TIER_BOUNDARIES = {
 
 // Confidence settings
 const CONFIDENCE_STEEPNESS = 12;
-const CONFIDENCE_THRESHOLD = 0.70;
 
 /**
  * MiniRouter — Intelligenter Model-Router für OpenClaw
@@ -55,21 +48,13 @@ export class Router {
   private categories: ModelCategory[] = MODEL_CATEGORIES;
 
   /**
-   * Hauptmethode: Entscheidet welches Model verwendet werden soll
+   * Hauptmethode: Entscheidet welches Model verwendet werden soll.
+   * 
+   * WICHTIG: `request.model` wird IGNORIERT für Scoring-Zwecke.
+   * Nur `defaultModel` wird als Fallback nach dem Scoring verwendet.
    */
-  async route(request: MiniRouterRequest): Promise<RoutingDecision> {
+  async route(request: MiniRouterRequest, defaultModel?: string): Promise<RoutingDecision> {
     const startTime = Date.now();
-
-    // Wenn Model explizit angegeben, direkt verwenden
-    if (request.model) {
-      return {
-        selectedModel: request.model,
-        category: 'explicit',
-        confidence: 1.0,
-        reasoning: 'Model explizit angegeben',
-        latencyMs: Date.now() - startTime
-      };
-    }
 
     // ── Overrides prüfen (vor Scoring) ──
     const override = this.checkOverrides(request);
@@ -86,8 +71,7 @@ export class Router {
     // ── Weighted Scoring ──
     const prompt = request.prompt;
     const estimatedTokens = Math.ceil(prompt.length / 4); // ~4 chars per token
-    const lowerPrompt = prompt.toLowerCase();
-    const userText = lowerPrompt;
+    const userText = prompt.toLowerCase();
 
     // Alle 15 Dimensionen scoren
     const dimensions: DimensionScore[] = [
@@ -128,13 +112,15 @@ export class Router {
     // Signals sammeln
     const signals = dimensions.filter(d => d.signal !== null).map(d => d.signal!);
 
-    // ── Reasoning Override: 2+ Reasoning-Marker → REASONING ──
+    // ── Special Tier Overrides (vor selectTier) ──
+
+    // Reasoning Override: 2+ Reasoning-Keywords → REASONING
     const reasoningKeywords = this.getCategoryKeywords('REASONING');
-    const reasoningMatches = reasoningKeywords.filter(kw => userText.includes(kw.toLowerCase()));
+    const reasoningMatches = reasoningKeywords.filter(kw => userText.includes(kw));
     if (reasoningMatches.length >= 2) {
-      const reasoningCat = this.categories.find(c => c.name === 'REASONING')!;
+      const cat = this.categories.find(c => c.name === 'REASONING')!;
       return {
-        selectedModel: reasoningCat.models[0],
+        selectedModel: cat.models[0],
         category: 'REASONING',
         confidence: Math.max(this.sigmoid(weightedScore), 0.85),
         reasoning: `Reasoning-Override: ${reasoningMatches.slice(0, 3).join(', ')}`,
@@ -142,13 +128,27 @@ export class Router {
       };
     }
 
-    // ── Agentic Override: 3+ Agentic-Marker → AGENTIC ──
-    const agenticKeywords = this.getCategoryKeywords('AGENTIC');
-    const agenticMatches = agenticKeywords.filter(kw => userText.includes(kw.toLowerCase()));
-    if (agenticMatches.length >= 3) {
-      const agenticCat = this.categories.find(c => c.name === 'AGENTIC')!;
+    // Creative Override: 2+ Creative-Keywords → CREATIVE
+    const creativeKeywords = this.getCategoryKeywords('CREATIVE');
+    const creativeMatches = creativeKeywords.filter(kw => userText.includes(kw));
+    if (creativeMatches.length >= 2) {
+      const cat = this.categories.find(c => c.name === 'CREATIVE')!;
       return {
-        selectedModel: agenticCat.models[0],
+        selectedModel: cat.models[0],
+        category: 'CREATIVE',
+        confidence: Math.max(this.sigmoid(weightedScore), 0.75),
+        reasoning: `Creative-Override: ${creativeMatches.slice(0, 3).join(', ')}`,
+        latencyMs: Date.now() - startTime
+      };
+    }
+
+    // Agentic Override: 3+ Agentic-Keywords → AGENTIC
+    const agenticKeywords = this.getCategoryKeywords('AGENTIC');
+    const agenticMatches = agenticKeywords.filter(kw => userText.includes(kw));
+    if (agenticMatches.length >= 3) {
+      const cat = this.categories.find(c => c.name === 'AGENTIC')!;
+      return {
+        selectedModel: cat.models[0],
         category: 'AGENTIC',
         confidence: Math.max(this.sigmoid(weightedScore), 0.80),
         reasoning: `Agentic-Override: ${agenticMatches.slice(0, 3).join(', ')}`,
@@ -156,10 +156,9 @@ export class Router {
       };
     }
 
-    // ── Tier Selection ──
+    // ── Standard Tier Selection ──
     const tier = this.selectTier(weightedScore);
     const category = this.categories.find(c => c.name === tier) ?? getDefaultCategory();
-    const isDefault = category.name === 'DEFAULT';
 
     return {
       selectedModel: category.models[0],
@@ -177,7 +176,7 @@ export class Router {
   private checkOverrides(request: MiniRouterRequest): { models: string[]; name: string; reason: string } | null {
     const estimatedTokens = Math.ceil(request.prompt.length / 4);
 
-    // Large Context → COMPLEX (wie ClawRouter: >100k tokens)
+    // Large Context → COMPLEX
     if (estimatedTokens > 25000) {
       const cat = this.categories.find(c => c.name === 'COMPLEX');
       if (cat) return { models: cat.models, name: cat.name, reason: `Large context (${estimatedTokens} tokens)` };
@@ -219,7 +218,7 @@ export class Router {
     thresholds: { low: number; high: number },
     scores: { none: number; low: number; high: number },
   ): DimensionScore {
-    const matches = keywords.filter(kw => text.includes(kw.toLowerCase()));
+    const matches = keywords.filter(kw => text.includes(kw));
     if (matches.length >= thresholds.high) {
       return { name, score: scores.high, signal: `${signalLabel} (${matches.slice(0, 3).join(', ')})` };
     }
@@ -231,7 +230,7 @@ export class Router {
 
   /** Dimension 7: Multi-Step Patterns */
   private scoreMultiStep(text: string): DimensionScore {
-    const patterns = [/first.*then/i, /step \d/i, /\d\.\s/, /danach.*dann/i, /after that/i];
+    const patterns = [/first.*then/, /step \d/, /\d\.\s/, /danach.*dann/, /after that/];
     const hits = patterns.filter(p => p.test(text));
     if (hits.length > 0) return { name: 'multiStepPatterns', score: 0.5, signal: 'multi-step' };
     return { name: 'multiStepPatterns', score: 0, signal: null };
@@ -264,11 +263,11 @@ export class Router {
   /** Dimension 10: Constraint Indicators */
   private scoreConstraints(text: string): DimensionScore {
     const constraints = [
-      'under', 'at most', 'at least', 'within', 'no more than',
+      'under', 'at most', 'at least', 'no more than',
       'maximum', 'minimum', 'limit', 'budget', 'o(n',
-      'höchstens', 'mindestens', 'innerhalb', 'nicht mehr als', 'maximal',
+      'höchstens', 'mindestens', 'nicht mehr als', 'maximal',
       '不超过', '至少', '最多', '限制',
-      '以下', '最大', '最小',
+      '最大', '最小',
     ];
     const matches = constraints.filter(c => text.includes(c));
     if (matches.length >= 3) return { name: 'constraintCount', score: 0.7, signal: `constraints (${matches.slice(0, 3).join(', ')})` };
@@ -287,8 +286,8 @@ export class Router {
 
   /** Dimension 12: Reference Complexity */
   private scoreReferences(text: string): DimensionScore {
-    const refs = ['above', 'below', 'previous', 'following', 'the docs', 'the api', 'the code', 'earlier', 'attached',
-      'oben', 'unten', 'vorherige', 'folgende', 'dokumentation', 'anhang',
+    const refs = ['previous', 'following', 'the docs', 'the api', 'the code', 'earlier', 'attached',
+      'vorherige', 'folgende', 'dokumentation', 'anhang',
     ];
     const matches = refs.filter(r => text.includes(r));
     if (matches.length >= 2) return { name: 'referenceComplexity', score: 0.5, signal: `references (${matches.slice(0, 2).join(', ')})` };
@@ -317,7 +316,7 @@ export class Router {
       'genomics', 'proteomics', 'topological', 'homomorphic',
       'zero-knowledge', 'lattice-based', 'blockchain',
       'quanten', 'photonik', 'genomik', 'proteomik', 'topologisch',
-      'homomorph', 'zero-knowledge', 'gitterbasiert', 'blockchain',
+      'homomorph', 'gitterbasiert',
       '量子', '光子学', '基因组学', '蛋白质组学', '拓扑', '同态', '区块链',
     ];
     const matches = domains.filter(d => text.includes(d));
@@ -326,10 +325,10 @@ export class Router {
     return { name: 'domainSpecificity', score: 0, signal: null };
   }
 
-  /** Dimension 15: Agentic Task (Extra-Scoring, Override in route()) */
+  /** Dimension 15: Agentic Task */
   private scoreAgenticTask(text: string): DimensionScore {
     const agenticKeywords = this.getCategoryKeywords('AGENTIC');
-    const matches = agenticKeywords.filter(kw => text.includes(kw.toLowerCase()));
+    const matches = agenticKeywords.filter(kw => text.includes(kw));
     if (matches.length >= 4) return { name: 'agenticTask', score: 1.0, signal: `agentic (${matches.slice(0, 3).join(', ')})` };
     if (matches.length >= 2) return { name: 'agenticTask', score: 0.6, signal: `agentic (${matches.slice(0, 2).join(', ')})` };
     if (matches.length >= 1) return { name: 'agenticTask', score: 0.2, signal: `agentic-light (${matches[0]})` };
@@ -346,7 +345,7 @@ export class Router {
     return cat?.keywords ?? [];
   }
 
-  /** Map weighted score zu Tier */
+  /** Map weighted score zu Tier (4-stufig: SIMPLE → MEDIUM → COMPLEX → REASONING) */
   private selectTier(weightedScore: number): string {
     if (weightedScore < TIER_BOUNDARIES.simpleMedium) return 'SIMPLE';
     if (weightedScore < TIER_BOUNDARIES.mediumComplex) return 'MEDIUM';
@@ -354,7 +353,7 @@ export class Router {
     return 'REASONING';
   }
 
-  /** Sigmoid Confidence Calibration (wie ClawRouter) */
+  /** Sigmoid Confidence Calibration */
   private sigmoid(score: number): number {
     return 1 / (1 + Math.exp(-CONFIDENCE_STEEPNESS * score));
   }
