@@ -131,6 +131,134 @@ Fertig! MiniRouter ist jetzt aktiv und routet automatisch.
 
 ---
 
+## 🤖 Für OpenClaw Agenten
+
+> **An alle OpenClaw-Agenten die dieses Plugin installieren sollen:**
+> Lest diesen Abschnitt komplett durch und befolgt die Schritte **in dieser Reihenfolge**.
+> Überspringt nichts und **rates nicht** — wenn etwas schiefgeht, reportet die genaue Fehlermeldung.
+
+### ⚠️ Häufigster Fehler: Falsches Verzeichnis!
+
+**RICHTIG:** `~/.openclaw/extensions/minirouter` ← Plugin Discovery scannt diesen Pfad
+**FALSCH:** `~/.openclaw/plugins/minirouter` ← Wird NICHT erkannt, Plugin wird ignoriert
+
+Wenn ein altes Plugin im falschen Verzeichnis existiert, **zuerst löschen**:
+
+```bash
+rm -rf ~/.openclaw/plugins/minirouter
+```
+
+### Schritt-für-Schritt
+
+#### 1. Plugin clonen ins RICHTIGE Verzeichnis
+
+```bash
+cd ~/.openclaw
+git clone https://github.com/rolachnews-beep/minirouter-plugin.git extensions/minirouter
+```
+
+Bestätigen: `ls ~/.openclaw/extensions/minirouter/openclaw.plugin.json` muss die Manifest-Datei zeigen.
+
+#### 2. Abhängigkeiten installieren und bauen
+
+```bash
+cd ~/.openclaw/extensions/minirouter
+npm install
+npm run build
+```
+
+Bestätigen: `ls dist/index.js` muss die kompilierte Datei zeigen. Bei TypeScript-Fehlern **stoppen** und die Fehlermeldung reporten — nicht ignorieren.
+
+#### 3. Config patchen (MERGE, nicht überschreiben!)
+
+**Das ist der kritischste Schritt.** Die OpenClaw Config (`openclaw.json`) enthält bereits bestehende Plugin-Einträge. Diese dürfen **NICHT** gelöscht werden.
+
+Lies zuerst die aktuelle Config:
+
+```bash
+cat ~/.openclaw/openclaw.json
+```
+
+Dann:
+- `"minirouter"` zur `plugins.allow` Array **hinzufügen** (nicht ersetzen)
+- `"minirouter"` zu `plugins.entries` **hinzufügen** (nicht ersetzen)
+
+Beispiel — falls die Config bereits andere Plugins hat:
+
+```json
+{
+  "plugins": {
+    "allow": ["existing-plugin", "minirouter"],
+    "entries": {
+      "existing-plugin": { ... },
+      "minirouter": {
+        "config": {
+          "defaultModel": "openrouter/minimax/minimax-m2.5",
+          "confidenceThreshold": 0.70,
+          "logDecisions": true
+        }
+      }
+    }
+  }
+}
+```
+
+> **MERKE:** Setze `logDecisions: true` beim ersten Install — so kann man im Gateway-Log sehen ob das Plugin funktioniert.
+
+#### 4. Gateway restart
+
+```bash
+openclaw gateway restart
+```
+
+#### 5. Verifizieren
+
+**a) Startup-Log prüfen:**
+
+Nach dem Restart sollte im Gateway-Log erscheinen:
+```
+MiniRouter v2.1 active — defaultModel: openrouter/minimax/minimax-m2.5, confidenceThreshold: 0.70, bypassTriggers: [heartbeat, cron, memory]
+```
+
+Wenn diese Zeile fehlt → Plugin wurde nicht geladen. Mögliche Gründe:
+- Falsches Verzeichnis (`plugins/` statt `extensions/`)
+- Fehlt in `plugins.allow`
+- `openclaw.plugin.json` fehlt oder ist invalide
+- Build fehlgeschlagen (kein `dist/index.js`)
+
+**b) Routing-Log prüfen (wenn `logDecisions: true`):**
+
+Sende eine Test-Nachricht und prüfe die Logs:
+```
+MiniRouter: SIMPLE (conf=85%) model=openrouter/meta-llama/llama-3.1-8b-instruct | trigger=user | ...
+```
+
+Wenn diese Zeilen bei User-Nachrichten erscheinen → **MiniRouter funktioniert!** ✅
+
+**c) Bypass prüfen:**
+
+Bei Heartbeat/Cron/Messages sollten NO Routing-Zeilen erscheinen — diese werden automatisch bypassed.
+
+#### 6. Wenn was schiefgeht
+
+**NICHT raten.** Stattdessen:
+
+1. Gateway-Logs lesen: `journalctl -u openclaw --since "5 min ago"` oder OpenClaw-Log-Datei checken
+2. Config validieren: Hat `plugins.allow` das `minirouter`? Hat `plugins.entries.minirouter` ein `config` Objekt?
+3. Dateien prüfen: Existiert `~/.openclaw/extensions/minirouter/openclaw.plugin.json`? Existiert `~/.openclaw/extensions/minirouter/dist/index.js`?
+4. TypeScript-Fehler: Falls `npm run build` Fehler hatte — die **komplette** Fehlermeldung reporten
+
+### ⛔ Was du NICHT tun solltest
+
+- ❌ Plugin nach `~/.openclaw/plugins/` installieren (falscher Pfad!)
+- ❌ Bestehende Config-Einträge löschen/überschreiben
+- ❌ `openclaw.json` komplett neu schreiben
+- ❌ `npm run build` Fehler ignorieren und trotzdem restart
+- ❌ Secrets aus `openclaw.json` im Chat posten
+- ❌ Vermuten was schiefging — Logs lesen!
+
+---
+
 ## ⚙️ Konfiguration
 
 | Option | Default | Beschreibung |
