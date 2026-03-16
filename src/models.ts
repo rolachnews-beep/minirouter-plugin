@@ -18,7 +18,6 @@ export const MODEL_CATEGORIES: ModelCategory[] = [
   {
     name: 'SIMPLE',
     models: [
-      'openrouter/google/gemini-2.5-flash-lite',
       'openrouter/meta-llama/llama-3.1-8b-instruct',
       'openrouter/google/gemma-2-9b-instruct',
     ],
@@ -64,8 +63,8 @@ export const MODEL_CATEGORIES: ModelCategory[] = [
   {
     name: 'MEDIUM',
     models: [
+      'openrouter/z-ai/glm-5',
       'openrouter/google/gemini-2.5-flash',
-      'openrouter/moonshot/kimi-k2.5',
       'openrouter/deepseek/deepseek-chat',
     ],
     keywords: [
@@ -185,9 +184,9 @@ export const MODEL_CATEGORIES: ModelCategory[] = [
   {
     name: 'REASONING',
     models: [
+      'openrouter/minimax/minimax-m2.5',
       'openrouter/openai/o4-mini',
       'openrouter/x-ai/grok-4-1-fast-reasoning',
-      'openrouter/deepseek/deepseek-reasoner',
     ],
     keywords: [
       // === English ===
